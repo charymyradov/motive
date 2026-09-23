@@ -1,0 +1,76 @@
+name: motive
+description: "Motive - learn the psychological forces that steer your behavior, one swipe at a time."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.12.2
+
+dependencies:
+  equatable: ^2.1.0
+  flutter:
+    sdk: flutter
+  flutter_bloc: ^9.1.1
+  flutter_local_notifications: ^22.3.1
+  flutter_timezone: ^5.1.0
+  fpdart: ^1.2.0
+  get_it: ^9.3.0
+  hive_ce: ^2.20.0
+  hive_ce_flutter: ^2.3.4
+  http: ^1.6.0
+  image_picker: ^1.2.3
+  timezone: ^0.11.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.4
+
+flutter:
+  uses-material-design: true
+
+  fonts:
+    - family: InstrumentSerif
+      fonts:
+        - asset: assets/fonts/InstrumentSerif-Regular.ttf
+        - asset: assets/fonts/InstrumentSerif-Italic.ttf
+          style: italic
+    - family: Manrope
+      fonts:
+        - asset: assets/fonts/Manrope-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Manrope-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Manrope-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Manrope-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/Manrope-ExtraBold.ttf
+          weight: 800
+    # Phosphor icons (MIT, see assets/fonts/phosphor/LICENSE). Bundled
+    # directly because phosphor_flutter 2.1.0 does not compile on Flutter 3.44.
+    - family: PhosphorRegular
+      fonts:
+        - asset: assets/fonts/phosphor/Phosphor-Regular.ttf
+    - family: PhosphorFill
+      fonts:
+        - asset: assets/fonts/phosphor/Phosphor-Fill.ttf
+    - family: JetBrainsMono
+      fonts:
+        - asset: assets/fonts/JetBrainsMono-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/JetBrainsMono-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/JetBrainsMono-SemiBold.ttf
+          weight: 600
+
+# App icon: `dart run flutter_launcher_icons` regenerates it from these files.
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/logo/motive_icon.png"
+  remove_alpha_ios: true
+  adaptive_icon_background: "#040311"
+  adaptive_icon_foreground: "assets/logo/motive_icon.png"
