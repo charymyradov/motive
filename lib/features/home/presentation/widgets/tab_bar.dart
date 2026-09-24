@@ -2,7 +2,9 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:get_it/get_it.dart';
 
+import '../../../../core/services/sound_service.dart';
 import '../../../../core/theme/app_text.dart';
 import '../../../../core/theme/motive_colors.dart';
 import '../cubit/home_cubit.dart';
@@ -44,7 +46,10 @@ class MotiveTabBar extends StatelessWidget {
                       tab: tab,
                       active: tab == current,
                       onTap: () {
-                        if (tab != current) HapticFeedback.selectionClick();
+                        if (tab != current) {
+                          HapticFeedback.selectionClick();
+                          GetIt.instance<SoundService>().playTabSwitch();
+                        }
                         onSelect(tab);
                       },
                     ),

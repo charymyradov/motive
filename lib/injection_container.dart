@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 
 import 'core/constants/hive_constants.dart';
 import 'core/services/notification_service.dart';
+import 'core/services/sound_service.dart';
 import 'core/widgets/shake.dart';
 import 'features/analyzer/data/datasources/analysis_local_datasource.dart';
 import 'features/analyzer/data/datasources/claude_analyzer_datasource.dart';
@@ -50,7 +51,8 @@ Future<void> initDependencies() async {
   sl
     ..registerLazySingleton<http.Client>(http.Client.new)
     ..registerLazySingleton<NotificationService>(NotificationService.new)
-    ..registerLazySingleton<ShakeController>(ShakeController.new);
+    ..registerLazySingleton<ShakeController>(ShakeController.new)
+    ..registerLazySingleton<SoundService>(SoundService.new);
 
   // ── Settings ───────────────────────────────────────────────────────────
   sl

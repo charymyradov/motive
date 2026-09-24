@@ -2,7 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:get_it/get_it.dart';
 
+import '../../../../core/services/sound_service.dart';
 import '../../../../core/theme/app_text.dart';
 import '../../../../core/theme/motive_colors.dart';
 import '../../../../core/widgets/buttons.dart';
@@ -100,6 +102,7 @@ class _CaseCardState extends State<CaseCard> with TickerProviderStateMixin {
   Future<void> _commit(bool saysHolds) async {
     if (_answered || _waiting) return;
     HapticFeedback.lightImpact();
+    GetIt.instance<SoundService>().playSwipe();
     setState(() {
       _mode = _Mode.out;
       _waiting = true;
@@ -132,7 +135,10 @@ class _CaseCardState extends State<CaseCard> with TickerProviderStateMixin {
     if (!correct) {
       _wiggle.forward(from: 0);
       HapticFeedback.heavyImpact();
+      GetIt.instance<SoundService>().playWrong();
       Future.delayed(const Duration(milliseconds: 90), HapticFeedback.mediumImpact);
+    } else {
+      GetIt.instance<SoundService>().playCorrect();
     }
     widget.onRevealed(correct);
   }

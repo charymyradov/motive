@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:get_it/get_it.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../../../core/services/sound_service.dart';
 import '../../../../core/theme/app_text.dart';
 import '../../../../core/theme/motive_colors.dart';
 import '../../../../core/widgets/buttons.dart';
@@ -61,6 +63,7 @@ class _AnalyzerPageState extends State<AnalyzerPage> {
                       ? 'image/gif'
                       : 'image/jpeg');
       if (mounted) context.read<AnalyzerBloc>().add(AnalyzerImageAttached(bytes, mime));
+      GetIt.instance<SoundService>().playImageAttached();
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not open that image.')));
@@ -93,6 +96,7 @@ class _AnalyzerPageState extends State<AnalyzerPage> {
         if (state.status == AnalyzerStatus.loading) _scrollToResult();
         if (state.status == AnalyzerStatus.success && state.result != null) {
           _scrollToResult();
+          GetIt.instance<SoundService>().playScanComplete();
           context.read<ShakeController>().shake(haptic: false);
         }
       },
@@ -358,7 +362,10 @@ class _HistoryTile extends StatelessWidget {
       child: Dismissible(
         key: ValueKey(analysis.id),
         direction: DismissDirection.endToStart,
-        onDismissed: (_) => context.read<AnalyzerBloc>().add(AnalyzerHistoryDeleted(analysis.id)),
+        onDismissed: (_) {
+          GetIt.instance<SoundService>().playAnalysisDelete();
+          context.read<AnalyzerBloc>().add(AnalyzerHistoryDeleted(analysis.id));
+        },
         background: Container(
           alignment: Alignment.centerRight,
           padding: const EdgeInsets.only(right: 20),

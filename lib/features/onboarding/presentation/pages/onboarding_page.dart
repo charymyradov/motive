@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:get_it/get_it.dart';
 
+import '../../../../core/services/sound_service.dart';
 import '../../../../core/theme/app_text.dart';
 import '../../../../core/theme/motive_colors.dart';
 import '../../../../core/widgets/buttons.dart';
@@ -63,7 +65,12 @@ class OnboardingPage extends StatelessWidget {
 
 void _next(BuildContext context) {
   final cubit = context.read<OnboardingCubit>();
-  if (cubit.next()) context.read<SettingsBloc>().add(OnboardingFinished(cubit.state.picked));
+  if (cubit.next()) {
+    context.read<SettingsBloc>().add(OnboardingFinished(cubit.state.picked));
+    GetIt.instance<SoundService>().playOnboardingComplete();
+  } else {
+    GetIt.instance<SoundService>().playStepAdvance();
+  }
 }
 
 class _Dots extends StatelessWidget {

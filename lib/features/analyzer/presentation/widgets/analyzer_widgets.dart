@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:get_it/get_it.dart';
 
+import '../../../../core/services/sound_service.dart';
 import '../../../../core/theme/app_text.dart';
 import '../../../../core/theme/motive_colors.dart';
 import '../../../../core/widgets/buttons.dart';
@@ -16,6 +18,12 @@ class ScannerPanel extends StatefulWidget {
 
 class _ScannerPanelState extends State<ScannerPanel> with SingleTickerProviderStateMixin {
   late final _ac = AnimationController(vsync: this, duration: const Duration(milliseconds: 1600))..repeat();
+
+  @override
+  void initState() {
+    super.initState();
+    GetIt.instance<SoundService>().playScanStart();
+  }
 
   @override
   void dispose() {

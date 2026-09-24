@@ -20,6 +20,7 @@ dependencies:
   hive_ce_flutter: ^2.3.4
   http: ^1.6.0
   image_picker: ^1.2.3
+  audioplayers: ^6.0.0
   timezone: ^0.11.1
 
 dev_dependencies:
@@ -30,6 +31,9 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+
+  assets:
+    - assets/audio/sfx/
 
   fonts:
     - family: InstrumentSerif

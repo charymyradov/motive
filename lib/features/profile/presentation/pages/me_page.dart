@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:get_it/get_it.dart';
 
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/services/sound_service.dart';
 import '../../../../core/theme/app_text.dart';
 import '../../../../core/theme/motive_colors.dart';
 import '../../../../core/utils/date_utils.dart';
@@ -362,13 +364,16 @@ class _Switch extends StatelessWidget {
         duration: const Duration(milliseconds: 300),
         curve: const Cubic(.3, 1.5, .5, 1),
         alignment: on ? Alignment.centerRight : Alignment.centerLeft,
-        child: Container(
-          width: 24,
-          height: 24,
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            shape: BoxShape.circle,
-            boxShadow: [BoxShadow(color: Color(0x4D000000), blurRadius: 6, offset: Offset(0, 2))],
+        child: GestureDetector(
+          onTap: () => GetIt.instance<SoundService>().playToggleClick(),
+          child: Container(
+            width: 24,
+            height: 24,
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+              boxShadow: [BoxShadow(color: Color(0x4D000000), blurRadius: 6, offset: Offset(0, 2))],
+            ),
           ),
         ),
       ),
@@ -386,7 +391,10 @@ class _ThemeToggle extends StatelessWidget {
     Widget seg(String label, AppThemeMode m) {
       final on = mode == m;
       return GestureDetector(
-        onTap: () => context.read<SettingsBloc>().add(ThemeModeChanged(m)),
+        onTap: () {
+          GetIt.instance<SoundService>().playToggleClick();
+          context.read<SettingsBloc>().add(ThemeModeChanged(m));
+        },
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 250),
           height: 30,
