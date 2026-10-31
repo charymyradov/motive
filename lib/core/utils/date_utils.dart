@@ -15,6 +15,13 @@ abstract final class DayKey {
     final day = DateTime(d.year, d.month, d.day);
     return day.subtract(Duration(days: day.weekday - DateTime.monday));
   }
+
+  /// Stable key of the week containing [d], e.g. `2026-10-05` (its Monday).
+  static String weekOf(DateTime d) => of(startOfWeek(d));
+
+  /// Monday of [n] weeks before the week containing [d].
+  static DateTime startOfWeekBack(DateTime d, int weeks) =>
+      startOfWeek(d).subtract(Duration(days: 7 * weeks));
 }
 
 extension ThousandsFormat on int {

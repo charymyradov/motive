@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+
+import '../services/haptics.dart';
 
 /// Tap target that shrinks slightly while pressed, like `:active` in the
 /// prototype.
@@ -43,7 +44,7 @@ class _PressableState extends State<Pressable> {
         onTapCancel: active ? () => _set(false) : null,
         onTap: active
             ? () {
-                if (widget.haptic) HapticFeedback.selectionClick();
+                if (widget.haptic) Haptics.tap();
                 widget.onTap!();
               }
             : null,

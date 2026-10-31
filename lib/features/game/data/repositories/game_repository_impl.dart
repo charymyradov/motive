@@ -10,6 +10,8 @@ import '../../domain/entities/daily_drop.dart';
 import '../../domain/entities/game_catalog.dart';
 import '../../domain/entities/player_progress.dart';
 import '../../domain/repositories/game_repository.dart';
+import '../../domain/services/achievements.dart';
+import '../../domain/services/challenges.dart';
 import '../../domain/services/drop_planner.dart';
 import '../datasources/card_catalog_datasource.dart';
 import '../datasources/game_local_datasource.dart';
@@ -36,7 +38,15 @@ class GameRepositoryImpl implements GameRepository {
   @override
   Future<Either<Failure, PlayerProgress>> getProgress() async {
     try {
-      return Right(_progress());
+      // Badges are derived, so players who already qualified before a new
+      // badge shipped get it on the next load without replaying history.
+      final progress = _progress();
+      final (updated, _) = Achievements.evaluate(progress, _catalog.load());
+      if (!identical(updated, progress)) {
+        await _local.saveProgress(ProgressModel.fromEntity(updated));
+        return Right(updated);
+      }
+      return Right(progress);
     } on CacheException catch (e) {
       return Left(CacheFailure(e.message));
     }
@@ -95,14 +105,38 @@ class GameRepositoryImpl implements GameRepository {
         missed.add(cardId);
       }
 
-      final newProgress = progress.copyWith(
+      var newProgress = progress.copyWith(
         xp: progress.xp + xp,
         collected: unlocked ? {...progress.collected, cardId: now} : progress.collected,
         activeDays: {...progress.activeDays, DayKey.of(now)},
         totalAnswers: progress.totalAnswers + 1,
         correctAnswers: progress.correctAnswers + (correct ? 1 : 0),
         missed: missed,
-      );
+      ).withAnswerOn(day: now, correct: correct, xp: xp);
+
+      // Badges first, then weekly goals — the challenge reward can itself
+      // unlock a badge, so evaluation order matters.
+      final (withBadges, badges) = Achievements.evaluate(newProgress, catalog);
+      newProgress = withBadges;
+      final newBadges = [...badges];
+
+      var bonusXp = 0;
+      final claimed = <WeeklyChallenge>[];
+      for (final c in Challenges.claimable(newProgress, now)) {
+        bonusXp += c.reward;
+        claimed.add(c);
+      }
+      if (claimed.isNotEmpty) {
+        newProgress = newProgress.copyWith(
+          xp: newProgress.xp + bonusXp,
+          claimedChallenges: {...newProgress.claimedChallenges, for (final c in claimed) c.id},
+        );
+        // Paying out XP may itself complete a badge (e.g. XP milestones).
+        final (afterPayout, moreBadges) = Achievements.evaluate(newProgress, catalog);
+        newProgress = afterPayout;
+        newBadges.addAll(moreBadges);
+      }
+
       final newDrop = drop.withAnswer(
         CaseAnswer(cardId: cardId, saidHolds: saysHolds, correct: correct, answeredAt: now),
       );
@@ -113,11 +147,32 @@ class GameRepositoryImpl implements GameRepository {
       return Right(AnswerOutcome(
         cardId: cardId,
         correct: correct,
-        xpGained: xp,
+        xpGained: xp + bonusXp,
         unlocked: unlocked,
         progress: newProgress,
         drop: newDrop,
+        achievements: newBadges,
+        challenges: claimed,
       ));
+    } on CacheException catch (e) {
+      return Left(CacheFailure(e.message));
+    }
+  }
+
+  @override
+  Future<Either<Failure, Map<String, String>>> getNotes() async {
+    try {
+      return Right(_local.getNotes());
+    } on CacheException catch (e) {
+      return Left(CacheFailure(e.message));
+    }
+  }
+
+  @override
+  Future<Either<Failure, Unit>> saveNote({required String cardId, required String text}) async {
+    try {
+      await _local.saveNote(cardId, text);
+      return const Right(unit);
     } on CacheException catch (e) {
       return Left(CacheFailure(e.message));
     }

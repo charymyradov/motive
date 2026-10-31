@@ -7,6 +7,7 @@ import 'core/theme/motive_colors.dart';
 import 'core/widgets/animated_blobs.dart';
 import 'core/widgets/shake.dart';
 import 'features/analyzer/presentation/bloc/analyzer_bloc.dart';
+import 'features/game/domain/entities/answer_outcome.dart';
 import 'features/game/presentation/bloc/game_bloc.dart';
 import 'features/game/presentation/cubit/collection_cubit.dart';
 import 'features/home/presentation/cubit/home_cubit.dart';
@@ -35,13 +36,17 @@ class MotiveApp extends StatelessWidget {
         child: BlocBuilder<SettingsBloc, SettingsState>(
           buildWhen: (a, b) => a.settings.themeMode != b.settings.themeMode,
           builder: (context, state) {
-            final dark = state.settings.themeMode == AppThemeMode.dark;
+            final themeMode = switch (state.settings.themeMode) {
+              AppThemeMode.dark => ThemeMode.dark,
+              AppThemeMode.light => ThemeMode.light,
+              AppThemeMode.system => ThemeMode.system,
+            };
             return MaterialApp(
               title: 'Motive',
               debugShowCheckedModeBanner: false,
               theme: AppTheme.light(),
               darkTheme: AppTheme.dark(),
-              themeMode: dark ? ThemeMode.dark : ThemeMode.light,
+              themeMode: themeMode,
               themeAnimationDuration: const Duration(milliseconds: 400),
               home: const _Root(),
             );
@@ -99,6 +104,10 @@ class _RootState extends State<_Root> {
               listenWhen: (a, b) => b.error != null && a.error != b.error && b.status == GameStatus.ready,
               listener: (context, s) => _snack(context, s.error!),
             ),
+            BlocListener<GameBloc, GameState>(
+              listenWhen: (a, b) => a.outcomeId != b.outcomeId && _celebrated(b.lastOutcome).isNotEmpty,
+              listener: (context, s) => _snack(context, _celebrated(s.lastOutcome).join(' · ')),
+            ),
           ],
           child: ShakeHost(
             controller: context.read<ShakeController>(),
@@ -132,6 +141,14 @@ class _RootState extends State<_Root> {
       ),
     );
   }
+
+  /// Labels worth celebrating after an answer: new badges and paid-out goals.
+  static List<String> _celebrated(AnswerOutcome? o) => [
+        if (o != null) ...[
+          for (final a in o.achievements) 'Achievement · ${a.title}',
+          for (final c in o.challenges) 'Goal complete · ${c.title} (+${c.reward} XP)',
+        ],
+      ];
 
   void _snack(BuildContext context, String message) {
     ScaffoldMessenger.of(context)

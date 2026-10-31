@@ -4,6 +4,9 @@ abstract final class AppConstants {
   /// Number of cases in one daily drop.
   static const dropSize = 8;
 
+  /// Arenas pre-selected for a brand-new player (onboarding step 2).
+  static const defaultPickedFields = ['ms', 'mm', 'wp'];
+
   /// Cards needed in one field to earn its title.
   static const cardsPerField = 6;
 

@@ -62,12 +62,12 @@ class NotificationService {
     return false;
   }
 
-  /// Schedules a notification every day at [AppConstants.reminderHour]:00.
-  Future<void> scheduleDailyDrop() async {
+  /// Schedules a notification every day at [hour]:[minute] local time.
+  Future<void> scheduleDailyDrop({int hour = AppConstants.reminderHour, int minute = 0}) async {
     if (!_supported) return;
     await init();
     final now = tz.TZDateTime.now(tz.local);
-    var at = tz.TZDateTime(tz.local, now.year, now.month, now.day, AppConstants.reminderHour);
+    var at = tz.TZDateTime(tz.local, now.year, now.month, now.day, hour, minute);
     if (!at.isAfter(now)) at = at.add(const Duration(days: 1));
 
     await _plugin.zonedSchedule(

@@ -8,6 +8,7 @@ import '../../../../core/theme/motive_colors.dart';
 import '../../../../core/utils/date_utils.dart';
 import '../../../../core/widgets/buttons.dart';
 import '../../../../core/widgets/dashed_border.dart';
+import '../../../../core/widgets/skeleton.dart';
 import '../../../home/presentation/cubit/home_cubit.dart';
 import '../../../settings/presentation/bloc/settings_bloc.dart';
 import '../bloc/game_bloc.dart';
@@ -30,7 +31,7 @@ class FeedPage extends StatelessWidget {
         if (state.status == GameStatus.failure) {
           return _Failure(message: state.error ?? 'Something went wrong.');
         }
-        if (!state.isReady) return const Center(child: CircularProgressIndicator.adaptive());
+        if (!state.isReady) return const _FeedSkeleton();
 
         final catalog = state.catalog!;
         final drop = state.drop!;
@@ -187,6 +188,7 @@ class _DropFooter extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.mc;
     final remind = context.select((SettingsBloc b) => b.state.settings.reminderEnabled);
+    final at = context.select((SettingsBloc b) => b.state.settings.reminderLabel);
     return Padding(
       padding: const EdgeInsets.fromLTRB(14, 6, 14, 0),
       child: DashedBorder(
@@ -203,7 +205,7 @@ class _DropFooter extends StatelessWidget {
               const SizedBox(height: 8),
               Text(
                 complete
-                    ? 'New cases land tomorrow${remind ? ' at 8:00' : ''}. Until then, turn it on the people talking at you.'
+                    ? 'New cases land tomorrow${remind ? ' at $at' : ''}. Until then, turn it on the people talking at you.'
                     : "Swipe right if the hypothesis holds, left if it doesn't. Call it right and the card is yours.",
                 textAlign: TextAlign.center,
                 style: AppText.sans(14, color: c.ink2, height: 1.5),
@@ -223,6 +225,27 @@ class _DropFooter extends StatelessWidget {
   }
 }
 
+/// Shown while today's drop loads: header bar + three card placeholders.
+class _FeedSkeleton extends StatelessWidget {
+  const _FeedSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    final top = MediaQuery.paddingOf(context).top;
+    return ListView(
+      physics: const NeverScrollableScrollPhysics(),
+      padding: EdgeInsets.fromLTRB(14, top + 98 + 18, 14, 20),
+      children: const [
+        Skeleton(width: double.infinity, height: 180, radius: 22),
+        SizedBox(height: 18),
+        Skeleton(width: double.infinity, height: 180, radius: 22),
+        SizedBox(height: 18),
+        Skeleton(width: double.infinity, height: 140, radius: 22),
+      ],
+    );
+  }
+}
+
 class _Failure extends StatelessWidget {
   const _Failure({required this.message});
   final String message;
@@ -238,7 +261,13 @@ class _Failure extends StatelessWidget {
           children: [
             Text('The feed got stuck.', style: AppText.serif(30, color: c.ink)),
             const SizedBox(height: 8),
-            Text(message, textAlign: TextAlign.center, style: AppText.sans(14, color: c.ink2)),
+            Text(message, textAlign: TextAlign.center, style: AppText.sans(14, color: c.ink2, height: 1.5)),
+            const SizedBox(height: 6),
+            Text(
+              'Usually a local storage hiccup. Retrying reloads today’s drop without losing progress.',
+              textAlign: TextAlign.center,
+              style: AppText.sans(12.5, color: c.ink3, height: 1.5),
+            ),
             const SizedBox(height: 18),
             GhostButton(
               label: 'Try again',

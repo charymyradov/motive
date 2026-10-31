@@ -37,15 +37,15 @@ class ReminderRepositoryImpl implements ReminderRepository {
   final NotificationService _notifications;
 
   @override
-  Future<Either<Failure, bool>> setDailyReminder(bool enabled) async {
+  Future<Either<Failure, bool>> setDailyReminder(ReminderRequest request) async {
     try {
-      if (!enabled) {
+      if (!request.enabled) {
         await _notifications.cancelDailyDrop();
         return const Right(false);
       }
       final granted = await _notifications.requestPermission();
       if (!granted) return const Right(false);
-      await _notifications.scheduleDailyDrop();
+      await _notifications.scheduleDailyDrop(hour: request.hour, minute: request.minute);
       return const Right(true);
     } catch (e) {
       return Left(CacheFailure('Could not schedule the reminder: $e'));

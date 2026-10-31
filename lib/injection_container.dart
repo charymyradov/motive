@@ -62,7 +62,14 @@ Future<void> initDependencies() async {
     ..registerLazySingleton(() => GetSettings(sl()))
     ..registerLazySingleton(() => SaveSettings(sl()))
     ..registerLazySingleton(() => SetDailyReminder(sl()))
-    ..registerFactory(() => SettingsBloc(getSettings: sl(), saveSettings: sl(), setDailyReminder: sl()));
+    ..registerLazySingleton(() => RescheduleReminder(sl(), sl()))
+    ..registerFactory(() => SettingsBloc(
+          getSettings: sl(),
+          saveSettings: sl(),
+          setDailyReminder: sl(),
+          rescheduleReminder: sl(),
+          soundService: sl(),
+        ));
 
   // ── Game (feed + collection) ───────────────────────────────────────────
   sl
@@ -74,12 +81,16 @@ Future<void> initDependencies() async {
     ..registerLazySingleton(() => GetTodayDrop(sl()))
     ..registerLazySingleton(() => AnswerCase(sl()))
     ..registerLazySingleton(() => ResetProgress(sl()))
+    ..registerLazySingleton(() => GetNotes(sl()))
+    ..registerLazySingleton(() => SaveNote(sl()))
     ..registerFactory(() => GameBloc(
           getCatalog: sl(),
           getProgress: sl(),
           getTodayDrop: sl(),
           answerCase: sl(),
           resetProgress: sl(),
+          getNotes: sl(),
+          saveNote: sl(),
         ))
     ..registerFactoryParam<OnboardingCubit, List<String>, void>(
       (picked, _) => OnboardingCubit(getCatalog: sl(), initialPicked: picked),

@@ -49,6 +49,15 @@ class GameResetRequested extends GameEvent {
   List<Object?> get props => [preferredFields];
 }
 
+/// Persists a personal note on one card (empty text deletes it).
+class CardNoteSaved extends GameEvent {
+  const CardNoteSaved({required this.cardId, required this.text});
+  final String cardId;
+  final String text;
+  @override
+  List<Object?> get props => [cardId, text];
+}
+
 // ── State ───────────────────────────────────────────────────────────────
 
 enum GameStatus { loading, ready, failure }
@@ -59,6 +68,7 @@ class GameState extends Equatable {
     this.catalog,
     this.progress = PlayerProgress.empty,
     this.drop,
+    this.notes = const {},
     this.lastOutcome,
     this.outcomeId = 0,
     this.error,
@@ -68,6 +78,9 @@ class GameState extends Equatable {
   final GameCatalog? catalog;
   final PlayerProgress progress;
   final DailyDrop? drop;
+
+  /// Personal notes, `card id -> text`.
+  final Map<String, String> notes;
 
   /// Result of the most recent answer; [outcomeId] increments with each one
   /// so listeners can react exactly once.
@@ -82,6 +95,7 @@ class GameState extends Equatable {
     GameCatalog? catalog,
     PlayerProgress? progress,
     DailyDrop? drop,
+    Map<String, String>? notes,
     AnswerOutcome? lastOutcome,
     int? outcomeId,
     String? error,
@@ -91,6 +105,7 @@ class GameState extends Equatable {
       catalog: catalog ?? this.catalog,
       progress: progress ?? this.progress,
       drop: drop ?? this.drop,
+      notes: notes ?? this.notes,
       lastOutcome: lastOutcome ?? this.lastOutcome,
       outcomeId: outcomeId ?? this.outcomeId,
       error: error,
@@ -98,7 +113,7 @@ class GameState extends Equatable {
   }
 
   @override
-  List<Object?> get props => [status, catalog, progress, drop, lastOutcome, outcomeId, error];
+  List<Object?> get props => [status, catalog, progress, drop, notes, lastOutcome, outcomeId, error];
 }
 
 // ── Bloc ────────────────────────────────────────────────────────────────
@@ -110,11 +125,14 @@ class GameBloc extends Bloc<GameEvent, GameState> {
     required this._getTodayDrop,
     required this._answerCase,
     required this._resetProgress,
+    required this._getNotes,
+    required this._saveNote,
   }) : super(const GameState()) {
     on<GameStarted>((e, emit) => _load(emit, e.preferredFields));
     on<GameDayChecked>(_onDayChecked);
     // Answers are processed one after another so progress writes never race.
     on<CaseAnswered>(_onAnswered, transformer: (events, mapper) => events.asyncExpand(mapper));
+    on<CardNoteSaved>(_onNoteSaved, transformer: (events, mapper) => events.asyncExpand(mapper));
     on<GameResetRequested>(_onReset);
   }
 
@@ -123,13 +141,16 @@ class GameBloc extends Bloc<GameEvent, GameState> {
   final GetTodayDrop _getTodayDrop;
   final AnswerCase _answerCase;
   final ResetProgress _resetProgress;
+  final GetNotes _getNotes;
+  final SaveNote _saveNote;
 
   Future<void> _load(Emitter<GameState> emit, List<String> preferred) async {
     final catalog = await _getCatalog(const NoParams());
     final progress = await _getProgress(const NoParams());
     final drop = await _getTodayDrop(GetTodayDropParams(preferred));
+    final notes = await _getNotes(const NoParams());
 
-    final failure = [catalog, progress, drop].firstWhere((r) => r.isLeft(), orElse: () => catalog);
+    final failure = [catalog, progress, drop, notes].firstWhere((r) => r.isLeft(), orElse: () => catalog);
     if (failure.isLeft()) {
       emit(state.copyWith(status: GameStatus.failure, error: failure.getLeft().toNullable()!.message));
       return;
@@ -139,6 +160,7 @@ class GameBloc extends Bloc<GameEvent, GameState> {
       catalog: catalog.toNullable(),
       progress: progress.toNullable(),
       drop: drop.toNullable(),
+      notes: notes.toNullable(),
     ));
   }
 
@@ -160,13 +182,31 @@ class GameBloc extends Bloc<GameEvent, GameState> {
     );
   }
 
+  Future<void> _onNoteSaved(CardNoteSaved event, Emitter<GameState> emit) async {
+    final result = await _saveNote(SaveNoteParams(cardId: event.cardId, text: event.text));
+    result.match(
+      (f) => emit(state.copyWith(error: f.message)),
+      (_) {
+        final notes = {...state.notes};
+        final trimmed = event.text.trim();
+        if (trimmed.isEmpty) {
+          notes.remove(event.cardId);
+        } else {
+          notes[event.cardId] = trimmed;
+        }
+        emit(state.copyWith(notes: notes));
+      },
+    );
+  }
+
   Future<void> _onReset(GameResetRequested event, Emitter<GameState> emit) async {
     final result = await _resetProgress(const NoParams());
     if (result.isLeft()) {
       emit(state.copyWith(error: result.getLeft().toNullable()!.message));
       return;
     }
-    emit(GameState(catalog: state.catalog, outcomeId: state.outcomeId));
+    // Personal notes outlive a progress reset, so they are kept as-is.
+    emit(GameState(catalog: state.catalog, notes: state.notes, outcomeId: state.outcomeId));
     await _load(emit, event.preferredFields);
   }
 }

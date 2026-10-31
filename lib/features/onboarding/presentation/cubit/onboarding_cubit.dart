@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../../core/constants/app_constants.dart';
 import '../../../../core/usecase/usecase.dart';
 import '../../../game/domain/entities/psych_field.dart';
 import '../../../game/domain/usecases/game_usecases.dart';
@@ -8,7 +9,7 @@ import '../../../game/domain/usecases/game_usecases.dart';
 class OnboardingState extends Equatable {
   const OnboardingState({
     this.step = 0,
-    this.picked = const ['ms', 'mm'],
+    this.picked = AppConstants.defaultPickedFields,
     this.fields = const [],
     this.forward = true,
   });
@@ -38,7 +39,7 @@ class OnboardingState extends Equatable {
 
 class OnboardingCubit extends Cubit<OnboardingState> {
   OnboardingCubit({required this._getCatalog, List<String>? initialPicked})
-      : super(OnboardingState(picked: initialPicked ?? const ['ms', 'mm']));
+      : super(OnboardingState(picked: initialPicked ?? AppConstants.defaultPickedFields));
 
   final GetCatalog _getCatalog;
 

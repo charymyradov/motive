@@ -1,8 +1,12 @@
+import 'dart:typed_data';
+
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../../core/services/sound_service.dart';
 import '../../../../core/usecase/usecase.dart';
 import '../../domain/entities/app_settings.dart';
+import '../../domain/repositories/settings_repository.dart';
 import '../../domain/usecases/settings_usecases.dart';
 
 // ── Events ──────────────────────────────────────────────────────────────
@@ -26,6 +30,21 @@ class ThemeModeChanged extends SettingsEvent {
 
 class ReminderToggled extends SettingsEvent {
   const ReminderToggled(this.enabled);
+  final bool enabled;
+  @override
+  List<Object?> get props => [enabled];
+}
+
+class ReminderTimeChanged extends SettingsEvent {
+  const ReminderTimeChanged(this.hour, this.minute);
+  final int hour;
+  final int minute;
+  @override
+  List<Object?> get props => [hour, minute];
+}
+
+class SoundToggled extends SettingsEvent {
+  const SoundToggled(this.enabled);
   final bool enabled;
   @override
   List<Object?> get props => [enabled];
@@ -61,6 +80,14 @@ class ApiKeyChanged extends SettingsEvent {
   final String apiKey;
   @override
   List<Object?> get props => [apiKey];
+}
+
+/// Sets (or, with null, removes) the profile photo.
+class AvatarChanged extends SettingsEvent {
+  const AvatarChanged(this.bytes);
+  final Uint8List? bytes;
+  @override
+  List<Object?> get props => [bytes];
 }
 
 // ── State ───────────────────────────────────────────────────────────────
@@ -99,13 +126,19 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     required GetSettings getSettings,
     required SaveSettings saveSettings,
     required SetDailyReminder setDailyReminder,
+    required RescheduleReminder rescheduleReminder,
+    required SoundService soundService,
   })  : _get = getSettings,
         _save = saveSettings,
         _reminder = setDailyReminder,
+        _reschedule = rescheduleReminder,
+        _sound = soundService,
         super(const SettingsState()) {
     on<SettingsStarted>(_onStarted);
     on<ThemeModeChanged>((e, emit) => _update(emit, state.settings.copyWith(themeMode: e.mode)));
     on<ReminderToggled>(_onReminder);
+    on<ReminderTimeChanged>(_onReminderTime);
+    on<SoundToggled>(_onSound);
     on<ArenasChanged>((e, emit) => _update(emit, state.settings.copyWith(pickedFields: e.fieldIds)));
     on<OnboardingFinished>(_onOnboardingFinished);
     on<OnboardingReplayRequested>((e, emit) => _update(emit, state.settings.copyWith(onboarded: false)));
@@ -114,18 +147,51 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
       await _update(emit, state.settings.copyWith(apiKey: e.apiKey.trim()));
       emit(state.withNotice(e.apiKey.trim().isEmpty ? 'Using the offline analyzer.' : 'Claude analyzer connected.'));
     });
+    on<AvatarChanged>((e, emit) async {
+      if (e.bytes == null) {
+        await _update(emit, state.settings.copyWith(clearAvatar: true));
+        emit(state.withNotice('Profile photo removed.'));
+      } else {
+        await _update(emit, state.settings.copyWith(avatar: e.bytes));
+      }
+    });
   }
 
   final GetSettings _get;
   final SaveSettings _save;
   final SetDailyReminder _reminder;
+  final RescheduleReminder _reschedule;
+  final SoundService _sound;
 
   Future<void> _onStarted(SettingsStarted event, Emitter<SettingsState> emit) async {
     final result = await _get(const NoParams());
     result.match(
       (f) => emit(state.copyWith(status: SettingsStatus.ready).withNotice(f.message)),
-      (s) => emit(state.copyWith(status: SettingsStatus.ready, settings: s)),
+      (s) {
+        _applySound(s.soundEnabled);
+        emit(state.copyWith(status: SettingsStatus.ready, settings: s));
+      },
     );
+  }
+
+  void _applySound(bool enabled, {bool audible = false}) {
+    _sound.enabled = enabled;
+    if (enabled && audible) _sound.playToggleClick();
+  }
+
+  Future<void> _onSound(SoundToggled event, Emitter<SettingsState> emit) async {
+    await _update(emit, state.settings.copyWith(soundEnabled: event.enabled));
+    _applySound(state.settings.soundEnabled, audible: true);
+  }
+
+  Future<void> _onReminderTime(ReminderTimeChanged event, Emitter<SettingsState> emit) async {
+    await _update(emit, state.settings.copyWith(reminderHour: event.hour, reminderMinute: event.minute));
+    if (!state.settings.reminderEnabled) return;
+    final result = await _reschedule(const NoParams());
+    final active = result.getOrElse((_) => false);
+    emit(state.withNotice(active
+        ? 'New cases will land at ${state.settings.reminderLabel}.'
+        : 'Could not reschedule the reminder.'));
   }
 
   Future<void> _update(Emitter<SettingsState> emit, AppSettings next) async {
@@ -140,7 +206,8 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
 
   Future<void> _onReminder(ReminderToggled event, Emitter<SettingsState> emit) async {
     emit(state.copyWith(settings: state.settings.copyWith(reminderEnabled: event.enabled)));
-    final result = await _reminder(event.enabled);
+    final s = state.settings;
+    final result = await _reminder(ReminderRequest(enabled: event.enabled, hour: s.reminderHour, minute: s.reminderMinute));
     final active = result.getOrElse((_) => false);
     await _update(emit, state.settings.copyWith(reminderEnabled: active));
     if (event.enabled && !active) {
@@ -151,7 +218,10 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
   Future<void> _onOnboardingFinished(OnboardingFinished event, Emitter<SettingsState> emit) async {
     await _update(emit, state.settings.copyWith(onboarded: true, pickedFields: event.fieldIds));
     if (state.settings.reminderEnabled) {
-      final result = await _reminder(true);
+      final s = state.settings;
+      final result = await _reminder(
+        ReminderRequest(enabled: true, hour: s.reminderHour, minute: s.reminderMinute),
+      );
       final active = result.getOrElse((_) => false);
       if (!active) await _update(emit, state.settings.copyWith(reminderEnabled: false));
     }

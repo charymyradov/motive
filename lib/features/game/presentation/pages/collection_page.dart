@@ -4,12 +4,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/services/haptics.dart';
 import '../../../../core/theme/app_text.dart';
 import '../../../../core/theme/motive_colors.dart';
 import '../../../../core/widgets/buttons.dart';
 import '../../../../core/widgets/card_art.dart';
 import '../../../../core/widgets/glass.dart';
 import '../../../../core/widgets/pressable.dart';
+import '../../../../core/widgets/skeleton.dart';
 import '../../../home/presentation/cubit/home_cubit.dart';
 import '../../domain/entities/game_catalog.dart';
 import '../../domain/entities/motive_card.dart';
@@ -17,6 +19,9 @@ import '../../domain/entities/player_progress.dart';
 import '../bloc/game_bloc.dart';
 import '../cubit/collection_cubit.dart';
 import '../widgets/card_styles.dart';
+
+/// Phosphor "magnifying glass" (font bundled in assets/fonts/phosphor).
+const _searchGlyph = IconData(0xe30c, fontFamily: 'PhosphorRegular');
 
 class CollectionPage extends StatelessWidget {
   const CollectionPage({super.key, required this.bottomInset});
@@ -29,10 +34,9 @@ class CollectionPage extends StatelessWidget {
     return BlocBuilder<GameBloc, GameState>(
       builder: (context, game) {
         final catalog = game.catalog;
-        if (catalog == null) return const Center(child: CircularProgressIndicator.adaptive());
-        return BlocBuilder<CollectionCubit, CollectionState>(
-          builder: (context, ui) {
-            final cards = catalog.cards.where((k) => ui.filter == null || k.fieldId == ui.filter).toList();
+        if (catalog == null) return const _CollectionSkeleton();
+        return BlocBuilder<CollectionCubit, CollectionState>(          builder: (context, ui) {
+            final cards = _visible(catalog, game.progress, ui);
             return CustomScrollView(
               slivers: [
                 SliverPadding(
@@ -59,6 +63,12 @@ class CollectionPage extends StatelessWidget {
                         if (ui.view == CollectionView.cards) ...[
                           const SizedBox(height: 14),
                           _Filters(catalog: catalog, selected: ui.filter),
+                          const SizedBox(height: 10),
+                          _Toolbar(state: ui, total: cards.length),
+                          if (ui.searching) ...[
+                            const SizedBox(height: 10),
+                            _SearchField(state: ui),
+                          ],
                         ],
                         const SizedBox(height: 16),
                       ],
@@ -66,19 +76,25 @@ class CollectionPage extends StatelessWidget {
                   ),
                 ),
                 if (ui.view == CollectionView.cards)
-                  SliverPadding(
-                    padding: EdgeInsets.fromLTRB(18, 0, 18, bottomInset + 24),
-                    sliver: SliverGrid.builder(
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 3,
-                        mainAxisSpacing: 10,
-                        crossAxisSpacing: 10,
-                        childAspectRatio: 5 / 7,
+                  if (cards.isEmpty)
+                    SliverPadding(
+                      padding: EdgeInsets.fromLTRB(18, 0, 18, bottomInset + 24),
+                      sliver: SliverToBoxAdapter(child: _EmptyResults(query: ui.query)),
+                    )
+                  else
+                    SliverPadding(
+                      padding: EdgeInsets.fromLTRB(18, 0, 18, bottomInset + 24),
+                      sliver: SliverGrid.builder(
+                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 3,
+                          mainAxisSpacing: 10,
+                          crossAxisSpacing: 10,
+                          childAspectRatio: 5 / 7,
+                        ),
+                        itemCount: cards.length,
+                        itemBuilder: (context, i) => _GridTile(card: cards[i], has: game.progress.has(cards[i].id)),
                       ),
-                      itemCount: cards.length,
-                      itemBuilder: (context, i) => _GridTile(card: cards[i], has: game.progress.has(cards[i].id)),
-                    ),
-                  )
+                    )
                 else
                   SliverPadding(
                     padding: EdgeInsets.fromLTRB(18, 0, 18, bottomInset + 24),
@@ -96,6 +112,42 @@ class CollectionPage extends StatelessWidget {
       },
     );
   }
+
+  /// Filter → search → sort, in that order.
+  static List<MotiveCard> _visible(GameCatalog catalog, PlayerProgress progress, CollectionState ui) {
+    final q = ui.query.trim().toLowerCase();
+    final cards = catalog.cards.where((card) {
+      if (ui.filter != null && card.fieldId != ui.filter) return false;
+      if (q.isEmpty) return true;
+      final field = catalog.field(card.fieldId);
+      return card.force.toLowerCase().contains(q) ||
+          card.question.toLowerCase().contains(q) ||
+          card.number.contains(q) ||
+          field.name.toLowerCase().contains(q) ||
+          field.short.toLowerCase().contains(q);
+    }).toList();
+
+    cards.sort(switch (ui.sort) {
+      CollectionSort.number => (a, b) => a.number.compareTo(b.number),
+      CollectionSort.rarity => (a, b) {
+          final byRarity = b.rarity.tier.compareTo(a.rarity.tier);
+          return byRarity != 0 ? byRarity : a.number.compareTo(b.number);
+        },
+      CollectionSort.recent => (a, b) {
+          final da = progress.collected[a.id];
+          final db = progress.collected[b.id];
+          if (da == null && db == null) return a.number.compareTo(b.number);
+          if (da == null) return 1;
+          if (db == null) return -1;
+          return db.compareTo(da);
+        },
+      CollectionSort.arena => (a, b) {
+          final byField = a.fieldId.compareTo(b.fieldId);
+          return byField != 0 ? byField : a.number.compareTo(b.number);
+        },
+    });
+    return cards;
+  }
 }
 
 class _Segmented extends StatelessWidget {
@@ -108,7 +160,10 @@ class _Segmented extends StatelessWidget {
     Widget seg(String label, CollectionView v) => Expanded(
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
-            onTap: () => context.read<CollectionCubit>().showView(v),
+            onTap: () {
+              Haptics.tap();
+              context.read<CollectionCubit>().showView(v);
+            },
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 250),
               height: 36,
@@ -152,7 +207,10 @@ class _Filters extends StatelessWidget {
           final (id, label, color) = items[i];
           final on = selected == id;
           return GestureDetector(
-            onTap: () => context.read<CollectionCubit>().setFilter(id),
+            onTap: () {
+              Haptics.tap();
+              context.read<CollectionCubit>().setFilter(id);
+            },
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 200),
               padding: const EdgeInsets.symmetric(horizontal: 13),
@@ -173,6 +231,199 @@ class _Filters extends StatelessWidget {
           );
         },
       ),
+    );
+  }
+}
+
+class _Toolbar extends StatelessWidget {
+  const _Toolbar({required this.state, required this.total});
+  final CollectionState state;
+  final int total;
+
+  static const _labels = {
+    CollectionSort.number: 'Number',
+    CollectionSort.rarity: 'Rarity',
+    CollectionSort.recent: 'Newest',
+    CollectionSort.arena: 'Arena',
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.mc;
+    return Row(
+      children: [
+        Text(
+          '$total SHOWN',
+          style: AppText.mono(10, weight: FontWeight.w600, color: c.ink3, letterSpacing: .14),
+        ),
+        const Spacer(),
+        Pressable(
+          haptic: true,
+          onTap: () => context.read<CollectionCubit>().toggleSearch(),
+          child: Container(
+            width: 32,
+            height: 32,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: state.searching ? c.glass2 : Colors.transparent,
+              borderRadius: BorderRadius.circular(11),
+              border: Border.all(color: c.line),
+            ),
+            child: Icon(
+              state.searching ? Icons.close_rounded : _searchGlyph,
+              size: 17,
+              color: state.searching ? c.ink : c.ink2,
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Pressable(
+          haptic: true,
+          onTap: () => _showSortMenu(context),
+          child: Container(
+            height: 32,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(11),
+              border: Border.all(color: c.line),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  _labels[state.sort]!,
+                  style: AppText.sans(12.5, weight: FontWeight.w600, color: c.ink2),
+                ),
+                const SizedBox(width: 5),
+                Icon(Icons.arrow_drop_down_rounded, size: 16, color: c.ink3),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _showSortMenu(BuildContext context) async {
+    final c = context.mc;
+    final cubit = context.read<CollectionCubit>();
+    final box = context.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize) return;
+    final origin = box.localToGlobal(Offset.zero);
+    final picked = await showMenu<CollectionSort>(
+      context: context,
+      initialValue: state.sort,
+      color: c.solid,
+      elevation: 8,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: c.line)),
+      position: RelativeRect.fromLTRB(origin.dx + box.size.width, origin.dy + 140, origin.dx, origin.dy),
+      items: [
+        for (final s in CollectionSort.values)
+          PopupMenuItem(
+            value: s,
+            child: Row(
+              children: [
+                if (s == state.sort)
+                  Icon(Icons.check_rounded, size: 15, color: Palette.accent)
+                else
+                  const SizedBox(width: 15),
+                const SizedBox(width: 8),
+                Text(_labels[s]!, style: AppText.sans(13.5, weight: FontWeight.w600, color: c.ink)),
+              ],
+            ),
+          ),
+      ],
+    );
+    if (picked != null) cubit.setSort(picked);
+  }
+}
+
+class _SearchField extends StatelessWidget {
+  const _SearchField({required this.state});
+  final CollectionState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.mc;
+    return Glass(
+      radius: 14,
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      child: TextField(
+        autofocus: false,
+        autocorrect: false,
+        enableSuggestions: false,
+        textInputAction: TextInputAction.search,
+        onChanged: (v) => context.read<CollectionCubit>().setQuery(v),
+        style: AppText.sans(14, color: c.ink),
+        cursorColor: Palette.accent,
+        decoration: InputDecoration(
+          isDense: true,
+          border: InputBorder.none,
+          hintText: 'Search cards and arenas',
+          hintStyle: AppText.sans(14, color: c.ink3),
+          contentPadding: const EdgeInsets.symmetric(vertical: 12),
+        ),
+      ),
+    );
+  }
+}
+
+class _EmptyResults extends StatelessWidget {
+  const _EmptyResults({required this.query});
+  final String query;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.mc;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 28, 8, 8),
+      child: Column(
+        children: [
+          Text('Nothing here.', style: AppText.serif(26, color: c.ink)),
+          const SizedBox(height: 6),
+          Text(
+            query.trim().isEmpty
+                ? 'No cards match this arena yet.'
+                : 'No cards match "${query.trim()}". Try another word or clear the arena filter.',
+            textAlign: TextAlign.center,
+            style: AppText.sans(13, color: c.ink2, height: 1.5),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Shown while the catalog loads: title bar, chips and a 3-column grid.
+class _CollectionSkeleton extends StatelessWidget {
+  const _CollectionSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    final top = MediaQuery.paddingOf(context).top;
+    return ListView(
+      physics: const NeverScrollableScrollPhysics(),
+      padding: EdgeInsets.fromLTRB(18, top + 16, 18, 0),
+      children: [
+        Skeleton(width: 180, height: 34, radius: 12),
+        const SizedBox(height: 16),
+        Skeleton(width: double.infinity, height: 44, radius: 18),
+        const SizedBox(height: 14),
+        const Skeleton(width: double.infinity, height: 32, radius: 16),
+        const SizedBox(height: 16),
+        for (var row = 0; row < 3; row++)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: Row(
+              children: [
+                for (var i = 0; i < 3; i++) ...[
+                  if (i > 0) const SizedBox(width: 10),
+                  const Expanded(child: SkeletonCard()),
+                ],
+              ],
+            ),
+          ),
+      ],
     );
   }
 }
@@ -263,6 +514,7 @@ class _GridTile extends StatelessWidget {
         if (has) {
           context.read<HomeCubit>().showDetail(card.id);
         } else {
+          Haptics.denied();
           ScaffoldMessenger.of(context)
             ..hideCurrentSnackBar()
             ..showSnackBar(const SnackBar(content: Text('Still locked. Solve its case in the feed to collect it.')));

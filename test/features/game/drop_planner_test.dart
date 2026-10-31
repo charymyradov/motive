@@ -42,7 +42,7 @@ void main() {
 
   test('falls back to review cards when almost everything is collected', () {
     final progress = PlayerProgress(
-      collected: {for (final c in catalog.cards.take(22)) c.id: DateTime(2026)},
+      collected: {for (final c in catalog.cards.take(46)) c.id: DateTime(2026)},
     );
     final ids = planner.plan(catalog: catalog, progress: progress, preferredFields: const [], dayKey: '2026-09-25');
     expect(ids, hasLength(8));

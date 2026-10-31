@@ -7,6 +7,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
 
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/services/haptics.dart';
 import '../../../../core/services/sound_service.dart';
 import '../../../../core/theme/app_text.dart';
 import '../../../../core/theme/motive_colors.dart';
@@ -56,14 +57,23 @@ class _UnlockOverlayState extends State<UnlockOverlay> with TickerProviderStateM
         setState(() => _phase = 2);
         _flip.forward();
         sound.playFlip();
+        Haptics.unlock(tier: _tier);
         context.read<ShakeController>().shake();
       }))
       ..add(Timer(const Duration(milliseconds: 1250), () {
         if (mounted) {
           setState(() => _phase = 3);
           sound.playConfetti();
+          if (_tier >= 4) Haptics.celebrate();
         }
       }));
+  }
+
+  /// Rarity tier of the card being revealed (0 while the catalog is absent).
+  int get _tier {
+    final catalog = context.read<GameBloc>().state.catalog;
+    if (catalog == null) return 1;
+    return catalog.card(widget.cardId).rarity.tier;
   }
 
   @override

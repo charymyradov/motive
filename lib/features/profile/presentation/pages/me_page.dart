@@ -1,19 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
+import 'package:image_picker/image_picker.dart';
 
-import '../../../../core/constants/app_constants.dart';
 import '../../../../core/services/sound_service.dart';
 import '../../../../core/theme/app_text.dart';
 import '../../../../core/theme/motive_colors.dart';
 import '../../../../core/utils/date_utils.dart';
 import '../../../../core/widgets/buttons.dart';
 import '../../../../core/widgets/glass.dart';
+import '../../../../core/widgets/skeleton.dart';
 import '../../../game/domain/entities/game_catalog.dart';
 import '../../../game/domain/entities/player_progress.dart';
 import '../../../game/presentation/bloc/game_bloc.dart';
 import '../../../settings/domain/entities/app_settings.dart';
 import '../../../settings/presentation/bloc/settings_bloc.dart';
+import '../widgets/profile_sections.dart';
 import '../widgets/profile_sheets.dart';
 
 class MePage extends StatelessWidget {
@@ -27,7 +29,7 @@ class MePage extends StatelessWidget {
     final settings = context.select((SettingsBloc b) => b.state.settings);
     final game = context.watch<GameBloc>().state;
     final catalog = game.catalog;
-    if (catalog == null) return const Center(child: CircularProgressIndicator.adaptive());
+    if (catalog == null) return const _MeSkeleton();
     final progress = game.progress;
 
     return ListView(
@@ -47,6 +49,28 @@ class MePage extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 22),
+        const MonoLabel('THIS WEEK', spacing: .18),
+        const SizedBox(height: 10),
+        const WeeklySummaryCard(),
+        const SizedBox(height: 10),
+        const WeeklyChallengesCard(),
+        const SizedBox(height: 22),
+        Row(
+          children: [
+            const MonoLabel('ACHIEVEMENTS', spacing: .18),
+            const Spacer(),
+            GhostButton(
+              label: 'See all',
+              height: 32,
+              fontSize: 12,
+              expand: false,
+              onTap: () => showAchievementsSheet(context),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        const AchievementsCard(),
+        const SizedBox(height: 22),
         const MonoLabel('SETTINGS', spacing: .18),
         const SizedBox(height: 10),
         Glass(
@@ -60,9 +84,25 @@ class MePage extends StatelessWidget {
               const _Divider(),
               _Row(
                 title: 'Daily drop reminder',
-                subtitle: '${AppConstants.reminderHour}:00, when new cases land',
+                subtitle: '${settings.reminderLabel}, when new cases land',
                 onTap: () => context.read<SettingsBloc>().add(ReminderToggled(!settings.reminderEnabled)),
                 trailing: _Switch(on: settings.reminderEnabled),
+              ),
+              const _Divider(),
+              _Row(
+                title: 'Reminder time',
+                subtitle: settings.reminderEnabled
+                    ? 'New cases land at ${settings.reminderLabel}'
+                    : 'Turn the reminder on to schedule',
+                onTap: () => _pickReminderTime(context, settings),
+                trailing: const _Chevron(),
+              ),
+              const _Divider(),
+              _Row(
+                title: 'Sound effects',
+                subtitle: settings.soundEnabled ? 'Swipes, unlocks and answers' : 'Muted',
+                onTap: () => context.read<SettingsBloc>().add(SoundToggled(!settings.soundEnabled)),
+                trailing: _Switch(on: settings.soundEnabled),
               ),
               const _Divider(),
               _Row(
@@ -110,6 +150,72 @@ class MePage extends StatelessWidget {
     final top = paths.first;
     return '${top.field.name} · ${top.rank.label}';
   }
+
+  Future<void> _pickReminderTime(BuildContext context, AppSettings settings) async {
+    final bloc = context.read<SettingsBloc>();
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay(hour: settings.reminderHour, minute: settings.reminderMinute),
+      builder: (context, child) => Theme(
+        data: Theme.of(context).brightness == Brightness.dark
+            ? Theme.of(context).copyWith(
+                timePickerTheme: TimePickerThemeData(
+                  backgroundColor: context.mc.solid,
+                  hourMinuteColor: context.mc.glass2,
+                  hourMinuteTextColor: context.mc.ink,
+                  dayPeriodColor: context.mc.glass2,
+                  dayPeriodTextColor: context.mc.ink,
+                  dialHandColor: Palette.accent,
+                  dialBackgroundColor: context.mc.glass2,
+                  entryModeIconColor: context.mc.ink2,
+                ),
+              )
+            : Theme.of(context),
+        child: child!,
+      ),
+    );
+    if (picked == null || !context.mounted) return;
+    bloc.add(ReminderTimeChanged(picked.hour, picked.minute));
+  }
+}
+
+/// Shown while the catalog loads: identity block, streak card and stats.
+class _MeSkeleton extends StatelessWidget {
+  const _MeSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    final top = MediaQuery.paddingOf(context).top;
+    return ListView(
+      physics: const NeverScrollableScrollPhysics(),
+      padding: EdgeInsets.fromLTRB(18, top + 16, 18, 24),
+      children: [
+        Row(
+          children: [
+            const Skeleton(width: 64, height: 64, radius: 32),
+            const SizedBox(width: 14),
+            const Expanded(child: SkeletonLines(lines: 2, width: 140)),
+          ],
+        ),
+        const SizedBox(height: 20),
+        Skeleton(width: double.infinity, height: 160, radius: 26),
+        const SizedBox(height: 10),
+        const Row(
+          children: [
+            Expanded(child: Skeleton(height: 88, radius: 22)),
+            SizedBox(width: 10),
+            Expanded(child: Skeleton(height: 88, radius: 22)),
+            SizedBox(width: 10),
+            Expanded(child: Skeleton(height: 88, radius: 22)),
+          ],
+        ),
+        const SizedBox(height: 22),
+        Skeleton(width: 90, height: 10, radius: 5),
+        const SizedBox(height: 10),
+        Skeleton(width: double.infinity, height: 240, radius: 22),
+      ],
+    );
+  }
 }
 
 class _Identity extends StatelessWidget {
@@ -122,29 +228,39 @@ class _Identity extends StatelessWidget {
     final c = context.mc;
     final name = settings.userName.isEmpty ? 'Add your name' : settings.userName;
     final initial = settings.userName.isEmpty ? 'M' : settings.userName.characters.first.toUpperCase();
+    final avatar = settings.avatar;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () => showNameDialog(context, settings.userName),
       child: Row(
         children: [
-          Container(
-            width: 64,
-            height: 64,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: const RadialGradient(
-                center: Alignment(-.4, -.4),
-                colors: [Color(0xFFC77DFF), Color(0xFF5B2BFF), Color(0xFF0A0A2A)],
-                stops: [0, .55, 1],
+          GestureDetector(
+            onTap: () => _pickPhoto(context, settings),
+            child: Container(
+              width: 64,
+              height: 64,
+              clipBehavior: Clip.antiAlias,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: avatar == null
+                    ? const RadialGradient(
+                        center: Alignment(-.4, -.4),
+                        colors: [Color(0xFFC77DFF), Color(0xFF5B2BFF), Color(0xFF0A0A2A)],
+                        stops: [0, .55, 1],
+                      )
+                    : null,
+                color: avatar == null ? null : c.solid,
+                boxShadow: [
+                  BoxShadow(color: c.bg, spreadRadius: 2),
+                  const BoxShadow(color: Palette.accent, spreadRadius: 3.5),
+                  const BoxShadow(color: Palette.accent, blurRadius: 30, spreadRadius: -4),
+                ],
               ),
-              boxShadow: [
-                BoxShadow(color: c.bg, spreadRadius: 2),
-                const BoxShadow(color: Palette.accent, spreadRadius: 3.5),
-                const BoxShadow(color: Palette.accent, blurRadius: 30, spreadRadius: -4),
-              ],
+              child: avatar != null
+                  ? Image.memory(avatar, fit: BoxFit.cover, width: 64, height: 64, gaplessPlayback: true)
+                  : Text(initial, style: AppText.serif(28, color: Colors.white)),
             ),
-            child: Text(initial, style: AppText.serif(28, color: Colors.white)),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -165,6 +281,57 @@ class _Identity extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  /// Tapping the avatar offers a photo picker (or removing the current one).
+  Future<void> _pickPhoto(BuildContext context, AppSettings settings) async {
+    final bloc = context.read<SettingsBloc>();
+    final c = context.mc;
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 10),
+            Text('Profile photo', style: AppText.serif(24, color: context.mc.ink)),
+            const SizedBox(height: 6),
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: Text('Take a photo', style: AppText.sans(15, color: context.mc.ink)),
+              onTap: () => Navigator.pop(ctx, ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: Text('Choose from library', style: AppText.sans(15, color: context.mc.ink)),
+              onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+            ),
+            if (settings.avatar != null)
+              ListTile(
+                leading: const Icon(Icons.delete_outline, color: Palette.nope),
+                title: Text('Remove photo', style: AppText.sans(15, color: Palette.nope)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  bloc.add(const AvatarChanged(null));
+                },
+              ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+    if (source == null) return;
+    try {
+      final picked = await ImagePicker().pickImage(source: source, maxWidth: 640, imageQuality: 78);
+      if (picked == null) return;
+      final bytes = await picked.readAsBytes();
+      bloc.add(AvatarChanged(bytes));
+    } catch (_) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not load that photo.', style: AppText.sans(14, color: c.ink))),
+      );
+    }
   }
 }
 
@@ -398,10 +565,10 @@ class _ThemeToggle extends StatelessWidget {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 250),
           height: 30,
-          padding: const EdgeInsets.symmetric(horizontal: 14),
+          padding: const EdgeInsets.symmetric(horizontal: 11),
           alignment: Alignment.center,
           decoration: BoxDecoration(color: on ? c.solid : Colors.transparent, borderRadius: BorderRadius.circular(11)),
-          child: Text(label, style: AppText.sans(12.5, weight: FontWeight.w700, color: on ? c.onSolid : c.ink2)),
+          child: Text(label, style: AppText.sans(12, weight: FontWeight.w700, color: on ? c.onSolid : c.ink2)),
         ),
       );
     }
@@ -409,7 +576,14 @@ class _ThemeToggle extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(3),
       decoration: BoxDecoration(color: c.glass2, borderRadius: BorderRadius.circular(14)),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [seg('Dark', AppThemeMode.dark), seg('Light', AppThemeMode.light)]),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          seg('Dark', AppThemeMode.dark),
+          seg('Light', AppThemeMode.light),
+          seg('Auto', AppThemeMode.system),
+        ],
+      ),
     );
   }
 }

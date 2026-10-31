@@ -8,6 +8,7 @@ import 'package:motive/features/game/data/repositories/game_repository_impl.dart
 class _MemoryGameStore implements GameLocalDataSource {
   ProgressModel? progress;
   DailyDropModel? drop;
+  final notes = <String, String>{};
 
   @override
   ProgressModel? getProgress() => progress;
@@ -17,6 +18,17 @@ class _MemoryGameStore implements GameLocalDataSource {
   DailyDropModel? getDrop() => drop;
   @override
   Future<void> saveDrop(DailyDropModel d) async => drop = d;
+  @override
+  Map<String, String> getNotes() => notes;
+  @override
+  Future<void> saveNote(String cardId, String text) async {
+    if (text.trim().isEmpty) {
+      notes.remove(cardId);
+    } else {
+      notes[cardId] = text.trim();
+    }
+  }
+
   @override
   Future<void> clear() async {
     progress = null;

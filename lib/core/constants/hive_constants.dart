@@ -21,4 +21,8 @@ abstract final class HiveKeys {
   static const settings = 'settings';
   static const progress = 'progress';
   static const drop = 'drop';
+
+  /// Personal notes, `card id -> text`. Not part of progress: resetting the
+  /// game keeps them (they are the player's own words about the cards).
+  static const notes = 'card_notes';
 }

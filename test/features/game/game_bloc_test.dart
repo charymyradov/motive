@@ -9,6 +9,7 @@ import 'package:motive/features/game/presentation/bloc/game_bloc.dart';
 class _MemoryGameStore implements GameLocalDataSource {
   ProgressModel? progress;
   DailyDropModel? drop;
+  final notes = <String, String>{};
 
   @override
   ProgressModel? getProgress() => progress;
@@ -18,6 +19,17 @@ class _MemoryGameStore implements GameLocalDataSource {
   DailyDropModel? getDrop() => drop;
   @override
   Future<void> saveDrop(DailyDropModel d) async => drop = d;
+  @override
+  Map<String, String> getNotes() => notes;
+  @override
+  Future<void> saveNote(String cardId, String text) async {
+    if (text.trim().isEmpty) {
+      notes.remove(cardId);
+    } else {
+      notes[cardId] = text.trim();
+    }
+  }
+
   @override
   Future<void> clear() async {
     progress = null;
@@ -36,6 +48,8 @@ void main() {
       getTodayDrop: GetTodayDrop(repo),
       answerCase: AnswerCase(repo),
       resetProgress: ResetProgress(repo),
+      getNotes: GetNotes(repo),
+      saveNote: SaveNote(repo),
     );
   });
 
@@ -44,7 +58,12 @@ void main() {
   test('loads the catalog and today\'s drop', () async {
     bloc.add(const GameStarted(['ms']));
     final state = await bloc.stream.firstWhere((s) => s.isReady);
-    expect(state.catalog!.cards, hasLength(24));
+    expect(state.catalog!.cards, hasLength(48));
+    expect(state.catalog!.fields, hasLength(8));
+    // Every arena deals 6 cards, so the expert title math stays uniform.
+    for (final f in state.catalog!.fields) {
+      expect(state.catalog!.cardsIn(f.id), hasLength(6), reason: 'arena ${f.id}');
+    }
     expect(state.drop!.caseIds, hasLength(8));
   });
 

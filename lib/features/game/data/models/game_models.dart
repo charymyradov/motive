@@ -118,6 +118,9 @@ class ProgressModel {
     required this.totalAnswers,
     required this.correctAnswers,
     required this.missed,
+    required this.daily,
+    required this.unlockedAchievements,
+    required this.claimedChallenges,
   });
 
   final int xp;
@@ -127,6 +130,13 @@ class ProgressModel {
   final int correctAnswers;
   final List<String> missed;
 
+  /// Day key -> `[answers, correct, xp]`.
+  final Map<String, List<int>> daily;
+
+  /// Achievement id -> earned at.
+  final Map<String, DateTime> unlockedAchievements;
+  final List<String> claimedChallenges;
+
   factory ProgressModel.fromEntity(PlayerProgress e) => ProgressModel(
         xp: e.xp,
         collected: Map.of(e.collected),
@@ -134,6 +144,9 @@ class ProgressModel {
         totalAnswers: e.totalAnswers,
         correctAnswers: e.correctAnswers,
         missed: e.missed.toList(),
+        daily: {for (final k in e.daily.keys) k: e.daily[k]!.toList()},
+        unlockedAchievements: Map.of(e.unlockedAchievements),
+        claimedChallenges: e.claimedChallenges.toList(),
       );
 
   PlayerProgress toEntity() => PlayerProgress(
@@ -143,6 +156,11 @@ class ProgressModel {
         totalAnswers: totalAnswers,
         correctAnswers: correctAnswers,
         missed: Set.unmodifiable(missed),
+        daily: Map.unmodifiable({
+          for (final e in daily.entries) e.key: DayStat.fromList(e.value),
+        }),
+        unlockedAchievements: Map.unmodifiable(unlockedAchievements),
+        claimedChallenges: Set.unmodifiable(claimedChallenges),
       );
 }
 
@@ -160,13 +178,17 @@ class ProgressModelAdapter extends TypeAdapter<ProgressModel> {
       totalAnswers: f[3] as int? ?? 0,
       correctAnswers: f[4] as int? ?? 0,
       missed: (f[5] as List? ?? const []).cast<String>(),
+      daily: (f[6] as Map? ?? const {})
+          .map((k, v) => MapEntry(k as String, (v as List).map((e) => e as int).toList())),
+      unlockedAchievements: (f[7] as Map? ?? const {}).cast<String, DateTime>(),
+      claimedChallenges: (f[8] as List? ?? const []).cast<String>(),
     );
   }
 
   @override
   void write(BinaryWriter writer, ProgressModel obj) {
     writer
-      ..writeByte(6)
+      ..writeByte(9)
       ..writeByte(0)
       ..write(obj.xp)
       ..writeByte(1)
@@ -178,6 +200,12 @@ class ProgressModelAdapter extends TypeAdapter<ProgressModel> {
       ..writeByte(4)
       ..write(obj.correctAnswers)
       ..writeByte(5)
-      ..write(obj.missed);
+      ..write(obj.missed)
+      ..writeByte(6)
+      ..write(obj.daily)
+      ..writeByte(7)
+      ..write(obj.unlockedAchievements)
+      ..writeByte(8)
+      ..write(obj.claimedChallenges);
   }
 }

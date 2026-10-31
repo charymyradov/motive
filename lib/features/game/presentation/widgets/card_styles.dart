@@ -60,10 +60,16 @@ class RarityStyle {
 
 abstract final class FieldStyle {
   static const _colors = {
+    // Original four
     'rc': Color(0xFFFF7AA8),
     'ms': Color(0xFF4FE3C1),
     'mm': Color(0xFFFFA65C),
     'ng': Color(0xFFB9FF5C),
+    // Arenas added in phase 1
+    'wp': Color(0xFF8B9CFF),
+    'dg': Color(0xFF5CD8FF),
+    'hl': Color(0xFFFF6E6E),
+    'sp': Color(0xFFFFD24F),
   };
 
   static Color color(String fieldId) => _colors[fieldId] ?? const Color(0xFFC77DFF);

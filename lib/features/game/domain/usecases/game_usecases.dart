@@ -65,3 +65,28 @@ class ResetProgress implements UseCase<Unit, NoParams> {
   @override
   Future<Either<Failure, Unit>> call(NoParams params) => _repo.resetProgress();
 }
+
+class GetNotes implements UseCase<Map<String, String>, NoParams> {
+  const GetNotes(this._repo);
+  final GameRepository _repo;
+
+  @override
+  Future<Either<Failure, Map<String, String>>> call(NoParams params) => _repo.getNotes();
+}
+
+class SaveNote implements UseCase<Unit, SaveNoteParams> {
+  const SaveNote(this._repo);
+  final GameRepository _repo;
+
+  @override
+  Future<Either<Failure, Unit>> call(SaveNoteParams params) =>
+      _repo.saveNote(cardId: params.cardId, text: params.text);
+}
+
+class SaveNoteParams extends Equatable {
+  const SaveNoteParams({required this.cardId, required this.text});
+  final String cardId;
+  final String text;
+  @override
+  List<Object?> get props => [cardId, text];
+}

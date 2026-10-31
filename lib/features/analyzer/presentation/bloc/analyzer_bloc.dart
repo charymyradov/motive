@@ -79,6 +79,7 @@ class AnalyzerState extends Equatable {
     this.status = AnalyzerStatus.idle,
     this.result,
     this.error,
+    this.errorHint = '',
     this.history = const [],
   });
 
@@ -87,6 +88,9 @@ class AnalyzerState extends Equatable {
   final AnalyzerStatus status;
   final Analysis? result;
   final String? error;
+
+  /// Recovery suggestion paired with [error]; empty when there is none.
+  final String errorHint;
   final List<Analysis> history;
 
   bool get canSubmit => (text.trim().isNotEmpty || image != null) && status != AnalyzerStatus.loading;
@@ -97,6 +101,7 @@ class AnalyzerState extends Equatable {
     AnalyzerStatus? status,
     Analysis? Function()? result,
     String? Function()? error,
+    String? errorHint,
     List<Analysis>? history,
   }) {
     return AnalyzerState(
@@ -105,12 +110,13 @@ class AnalyzerState extends Equatable {
       status: status ?? this.status,
       result: result != null ? result() : this.result,
       error: error != null ? error() : this.error,
+      errorHint: errorHint ?? this.errorHint,
       history: history ?? this.history,
     );
   }
 
   @override
-  List<Object?> get props => [text, image, status, result, error, history];
+  List<Object?> get props => [text, image, status, result, error, errorHint, history];
 }
 
 // ── Bloc ────────────────────────────────────────────────────────────────
@@ -132,6 +138,7 @@ class AnalyzerBloc extends Bloc<AnalyzerEvent, AnalyzerState> {
           status: AnalyzerStatus.success,
           result: () => e.analysis,
           error: () => null,
+          errorHint: '',
         )));
     on<AnalyzerHistoryDeleted>(_onDeleted);
     on<AnalyzerReset>((e, emit) => emit(AnalyzerState(history: state.history)));
@@ -148,16 +155,20 @@ class AnalyzerBloc extends Bloc<AnalyzerEvent, AnalyzerState> {
 
   Future<void> _onSubmitted(AnalyzerSubmitted event, Emitter<AnalyzerState> emit) async {
     if (!state.canSubmit) return;
-    emit(state.copyWith(status: AnalyzerStatus.loading, result: () => null, error: () => null));
+    emit(state.copyWith(status: AnalyzerStatus.loading, result: () => null, error: () => null, errorHint: ''));
     final result = await _analyze(AnalysisRequest(
       text: state.text,
       imageBytes: state.image?.bytes,
       imageMimeType: state.image?.mimeType,
     ));
     await result.match(
-      (f) async => emit(state.copyWith(status: AnalyzerStatus.failure, error: () => f.message)),
+      (f) async => emit(state.copyWith(
+        status: AnalyzerStatus.failure,
+        error: () => f.message,
+        errorHint: f.hint,
+      )),
       (analysis) async {
-        emit(state.copyWith(status: AnalyzerStatus.success, result: () => analysis));
+        emit(state.copyWith(status: AnalyzerStatus.success, result: () => analysis, errorHint: ''));
         await _loadHistory(emit);
       },
     );

@@ -186,7 +186,46 @@ class _AnalyzerPageState extends State<AnalyzerPage> {
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(color: Palette.nope.withValues(alpha: .4)),
                       ),
-                      child: Text(state.error ?? '', style: AppText.sans(13.5, color: Palette.nopeSoft, height: 1.5)),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Icon(Icons.error_outline_rounded, size: 17, color: Palette.nopeSoft),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  state.error ?? 'Something went wrong.',
+                                  style: AppText.sans(13.5, color: Palette.nopeSoft, height: 1.5),
+                                ),
+                              ),
+                            ],
+                          ),
+                          if (state.errorHint.isNotEmpty) ...[
+                            const SizedBox(height: 8),
+                            Padding(
+                              padding: const EdgeInsets.only(left: 25),
+                              child: Text(state.errorHint, style: AppText.sans(12.5, color: c.ink3, height: 1.5)),
+                            ),
+                          ],
+                          if (state.canSubmit || state.text.isNotEmpty || state.image != null) ...[
+                            const SizedBox(height: 12),
+                            Padding(
+                              padding: const EdgeInsets.only(left: 10),
+                              child: Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: [
+                                  _Chip(label: 'Try again', onTap: _submit),
+                                  if (!hasKey)
+                                    _Chip(label: 'Add a Claude key', onTap: () => context.read<HomeCubit>().selectTab(HomeTab.me)),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
                     ),
                   AnalyzerStatus.success when state.result != null => Padding(
                       key: ValueKey(state.result!.id),
